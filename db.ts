@@ -1,6 +1,5 @@
 import Database from 'better-sqlite3';
-import path from 'path';
-
+import * as path from "path";
 const db = new Database('lms.db');
 
 // Enable foreign keys

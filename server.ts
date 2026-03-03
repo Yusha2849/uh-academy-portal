@@ -1,11 +1,10 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
-import { initDb } from "./db.ts";
-import db from "./db.ts";
+import { initDb } from "./db";
+import db from "./db";
 import jwt from "jsonwebtoken";
 import cookieParser from "cookie-parser";
-import path from "path";
-import cors from "cors";
+import * as path from "path";import cors from "cors";
 
 const JWT_SECRET = process.env.JWT_SECRET || "lms-secret-key";
 
