@@ -1,0 +1,8 @@
+{
+  "name": "UH Academy LMS",
+  "description": "A comprehensive, scalable Learning Management System for students, lecturers, and administrators.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
