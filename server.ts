@@ -5,6 +5,7 @@ import db from "./db.ts";
 import jwt from "jsonwebtoken";
 import cookieParser from "cookie-parser";
 import path from "path";
+import cors from "cors";
 
 const JWT_SECRET = process.env.JWT_SECRET || "lms-secret-key";
 
@@ -13,8 +14,8 @@ async function startServer() {
   initDb();
   console.log("Database initialized.");
   const app = express();
-  const PORT = 3000;
-
+  app.use(cors());
+const PORT = process.env.PORT || 3000;
   app.use(express.json());
   app.use(cookieParser());
 
