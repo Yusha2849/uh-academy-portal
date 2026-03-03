@@ -1,7 +1,7 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
-import { initDb } from "./db";
-import db from "./db";
+import { initDb } from "./db.js";
+import db from "./db.js";
 import jwt from "jsonwebtoken";
 import cookieParser from "cookie-parser";
 import * as path from "path";import cors from "cors";
