@@ -5,7 +5,7 @@
   "type": "module",
 "scripts": {
     "dev": "tsx server.ts",
-"build": "vite build && tsc server.ts --outDir dist --module esnext --target esnext --moduleResolution node --skipLibCheck --allowSyntheticDefaultImports"    "start": "node dist/server.js",
+"build": "vite build && tsc server.ts --outDir dist --module esnext --target esnext --moduleResolution node --skipLibCheck --allowSyntheticDefaultImports",    "start": "node dist/server.js",
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "npm run build"
