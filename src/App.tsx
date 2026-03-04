@@ -62,6 +62,10 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn, fetchJson } from './lib/utils';
 import { User, Course } from './types';
 import { StudentDashboard } from './pages/student/Dashboard';
+import { TestQuestionBuilder } from './components/TestQuestionBuilder';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { TestAnalytics, ForumView, ModuleContent, ResourcesTab, CourseGrades } from './components/course-components';
+
 import { Card, Badge, SidebarItem } from './components/ui';
 
 
@@ -986,6 +990,8 @@ const AssignmentView = ({ user }: { user: User }) => {
   const [submissionData, setSubmissionData] = useState({ text: '', file: null as File | null });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const isPreview = user.role === 'admin' || user.role === 'sysadmin';
+
   const fetchData = async () => {
     try {
       const [aData, sData] = await Promise.all([
@@ -1089,6 +1095,12 @@ const AssignmentView = ({ user }: { user: User }) => {
             )}
           </div>
         </div>
+        {isPreview && (
+          <div className="bg-amber-100 text-amber-800 px-4 py-2 rounded-xl flex items-center gap-2 font-bold border border-amber-200">
+            <Eye size={18} />
+            <span>Admin Preview Mode</span>
+          </div>
+        )}
         {user.role === 'lecturer' && !assignment.grades_released && (
           <button 
             onClick={handleReleaseGrades}
@@ -1547,321 +1559,6 @@ const QuestionBank = ({ courseId }: { courseId: number }) => {
   );
 };
 
-
-const ForumView = ({ url, user }: { url: string, user: User }) => {
-  const [forum, setForum] = useState<any>(null);
-  const [posts, setPosts] = useState<any[]>([]);
-  const [showNewThread, setShowNewThread] = useState(false);
-  const [newThread, setNewThread] = useState({ title: '', content: '' });
-  const [replyingTo, setReplyingTo] = useState<number | null>(null);
-  const [replyContent, setReplyContent] = useState('');
-
-  const fetchForum = async () => {
-    try {
-      const fData = await fetchJson(url);
-      setForum(fData);
-      
-      const pData = await fetchJson(`/api/forums/${fData.id}/posts`);
-      setPosts(pData);
-    } catch (err) {
-      console.error("Failed to fetch forum data:", err);
-    }
-  };
-
-  useEffect(() => {
-    fetchForum();
-  }, [url]);
-
-  const handleCreateThread = async () => {
-    const res = await fetch(`/api/forums/${forum.id}/posts`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newThread)
-    });
-    if (res.ok) {
-      setShowNewThread(false);
-      setNewThread({ title: '', content: '' });
-      fetchForum();
-    }
-  };
-
-  const handleReply = async (parentId: number) => {
-    const res = await fetch(`/api/forums/${forum.id}/posts`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: replyContent, parent_id: parentId })
-    });
-    if (res.ok) {
-      setReplyingTo(null);
-      setReplyContent('');
-      fetchForum();
-    }
-  };
-
-  const handlePin = async (postId: number, isPinned: boolean) => {
-    await fetch(`/api/posts/${postId}/pin`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ is_pinned: !isPinned })
-    });
-    fetchForum();
-  };
-
-  const handleReport = async (postId: number) => {
-    const reason = prompt("Reason for reporting:");
-    if (reason) {
-      await fetch(`/api/posts/${postId}/report`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason })
-      });
-      alert("Post reported to moderators.");
-    }
-  };
-
-  if (!forum) return null;
-
-  const threads = posts.filter(p => !p.parent_id);
-  const getReplies = (parentId: number) => posts.filter(p => p.parent_id === parentId);
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900">{forum.title}</h2>
-          <p className="text-sm text-slate-500">{forum.description}</p>
-        </div>
-        <button 
-          onClick={() => setShowNewThread(true)}
-          className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-emerald-600/20"
-        >
-          New Thread
-        </button>
-      </div>
-
-      {showNewThread && (
-        <Card className="p-6 space-y-4 border-emerald-200 bg-emerald-50/30">
-          <input 
-            type="text" 
-            placeholder="Thread Title"
-            value={newThread.title}
-            onChange={(e) => setNewThread({ ...newThread, title: e.target.value })}
-            className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
-          />
-          <textarea 
-            placeholder="What's on your mind?"
-            value={newThread.content}
-            onChange={(e) => setNewThread({ ...newThread, content: e.target.value })}
-            className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500 min-h-[120px]"
-          />
-          <div className="flex justify-end gap-3">
-            <button onClick={() => setShowNewThread(false)} className="px-4 py-2 text-slate-500 font-bold">Cancel</button>
-            <button onClick={handleCreateThread} className="px-6 py-2 bg-emerald-600 text-white rounded-xl font-bold">Post Thread</button>
-          </div>
-        </Card>
-      )}
-
-      <div className="space-y-4">
-        {threads.map(thread => (
-          <Card key={thread.id} className={cn("overflow-hidden", thread.is_pinned && "border-emerald-200 ring-1 ring-emerald-100")}>
-            <div className="p-6 space-y-4">
-              <div className="flex items-start justify-between">
-                <div className="flex gap-4">
-                  <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 font-bold">
-                    {thread.full_name?.charAt(0)}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-slate-900">{thread.title}</h4>
-                      {thread.is_pinned && <Badge variant="success" className="text-[10px] py-0 px-1.5"><Pin size={10} className="mr-1" /> Pinned</Badge>}
-                    </div>
-                    <p className="text-xs text-slate-400">By {thread.full_name} • {new Date(thread.created_at).toLocaleString()}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {(user.role === 'lecturer' || user.role === 'admin') && (
-                    <button 
-                      onClick={() => handlePin(thread.id, thread.is_pinned)}
-                      className={cn("p-2 rounded-lg transition-colors", thread.is_pinned ? "text-emerald-600 bg-emerald-50" : "text-slate-400 hover:bg-slate-50")}
-                      title={thread.is_pinned ? "Unpin" : "Pin"}
-                    >
-                      <Pin size={16} />
-                    </button>
-                  )}
-                  <button onClick={() => handleReport(thread.id)} className="p-2 text-slate-400 hover:text-rose-600 transition-colors" title="Report">
-                    <Flag size={16} />
-                  </button>
-                </div>
-              </div>
-              <p className="text-slate-600 text-sm leading-relaxed">{thread.content}</p>
-              
-              <div className="flex items-center gap-4 pt-2">
-                <button 
-                  onClick={() => setReplyingTo(replyingTo === thread.id ? null : thread.id)}
-                  className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 hover:underline"
-                >
-                  <MessageSquare size={14} />
-                  Reply
-                </button>
-              </div>
-
-              {replyingTo === thread.id && (
-                <div className="mt-4 space-y-3">
-                  <textarea 
-                    placeholder="Write a reply..."
-                    value={replyContent}
-                    onChange={(e) => setReplyContent(e.target.value)}
-                    className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500 text-sm min-h-[80px]"
-                  />
-                  <div className="flex justify-end gap-2">
-                    <button onClick={() => setReplyingTo(null)} className="px-3 py-1.5 text-xs font-bold text-slate-500">Cancel</button>
-                    <button onClick={() => handleReply(thread.id)} className="px-4 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold">Reply</button>
-                  </div>
-                </div>
-              )}
-
-              {/* Replies */}
-              <div className="space-y-4 pt-4 border-t border-slate-100">
-                {getReplies(thread.id).map(reply => (
-                  <div key={reply.id} className="flex gap-3 pl-6 border-l-2 border-slate-100">
-                    <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 text-xs font-bold">
-                      {reply.full_name?.charAt(0)}
-                    </div>
-                    <div className="flex-1 space-y-1">
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs font-bold text-slate-900">{reply.full_name} <span className="font-normal text-slate-400 ml-1">• {new Date(reply.created_at).toLocaleDateString()}</span></p>
-                        <button onClick={() => handleReport(reply.id)} className="text-slate-300 hover:text-rose-600"><Flag size={12} /></button>
-                      </div>
-                      <p className="text-sm text-slate-600">{reply.content}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </Card>
-        ))}
-        {threads.length === 0 && (
-          <div className="p-12 text-center text-slate-400 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
-            No discussions yet. Start a new thread!
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-const ModuleContent = ({ moduleId, user }: { moduleId: number, user: User }) => {
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
-  const fetchData = async () => {
-    try {
-      const json = await fetchJson(`/api/modules/${moduleId}/content`);
-      setData(json);
-      setLoading(false);
-    } catch (err) {
-      console.error("Failed to fetch module content:", err);
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, [moduleId]);
-
-  const toggleViewed = async (contentId: number, currentStatus: boolean) => {
-    await fetch(`/api/content/${contentId}/progress`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ is_viewed: !currentStatus })
-    });
-    fetchData();
-  };
-
-  if (loading) return <div className="py-4 text-center text-xs text-slate-400">Loading content...</div>;
-
-  return (
-    <div className="mt-4 space-y-4 border-t border-slate-100 pt-4">
-      {data.content.map((item: any) => (
-        <div key={item.id} className="flex items-center justify-between group/item">
-          <div className="flex items-center gap-3">
-            <div className={cn(
-              "w-8 h-8 rounded-lg flex items-center justify-center",
-              item.type === 'video' ? "bg-rose-50 text-rose-600" :
-              item.type === 'audio' || item.type === 'podcast' ? "bg-amber-50 text-amber-600" :
-              "bg-blue-50 text-blue-600"
-            )}>
-              {item.type === 'video' ? <Video size={16} /> :
-               item.type === 'audio' || item.type === 'podcast' ? <Mic size={16} /> :
-               <FileText size={16} />}
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-900">{item.title}</p>
-              <div className="flex items-center gap-2">
-                <p className="text-[10px] text-slate-400 uppercase tracking-wider">{item.type} {item.is_external ? '• External' : ''}</p>
-                {item.creator_name && <span className="text-[10px] text-slate-400">• {item.creator_name}</span>}
-              </div>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            {user.role === 'student' && (
-              <button 
-                onClick={(e) => { e.stopPropagation(); toggleViewed(item.id, !!item.is_viewed); }}
-                className={cn(
-                  "p-1.5 rounded-lg transition-colors",
-                  item.is_viewed ? "text-emerald-600 bg-emerald-50" : "text-slate-300 hover:text-slate-400"
-                )}
-                title={item.is_viewed ? "Mark as unviewed" : "Mark as viewed"}
-              >
-                <CheckCircle size={16} fill={item.is_viewed ? "currentColor" : "none"} />
-              </button>
-            )}
-            
-            {item.allow_download && (
-              <a 
-                href={item.url} 
-                download 
-                onClick={(e) => e.stopPropagation()}
-                className="p-1.5 text-slate-400 hover:text-slate-600 transition-colors"
-                title="Download"
-              >
-                <Download size={16} />
-              </a>
-            )}
-            
-            <a 
-              href={item.url} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="p-1.5 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors"
-            >
-              <ExternalLink size={14} />
-            </a>
-          </div>
-        </div>
-      ))}
-      
-      {data.assignments.length > 0 && (
-        <div className="space-y-2 pt-2">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Assignments</p>
-          {data.assignments.map((a: any) => (
-            <Link key={a.id} to={`#assignments`} className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 transition-colors">
-              <div className="flex items-center gap-3">
-                <div className="w-6 h-6 rounded bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                  <FileText size={12} />
-                </div>
-                <span className="text-xs font-medium text-slate-700">{a.title}</span>
-              </div>
-              <ChevronRight size={12} className="text-slate-300" />
-            </Link>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
 
 const MyCourses = ({ user }: { user: User }) => {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -2552,6 +2249,7 @@ const TestAttemptView = ({ user }: { user: User }) => {
     });
     if (res.ok) {
       setShowSuccess(true);
+      setAttempt(prev => ({ ...prev, score: Number(grade) }));
       setTimeout(() => setShowSuccess(false), 3000);
     }
   };
@@ -2581,7 +2279,7 @@ const TestAttemptView = ({ user }: { user: User }) => {
         <div className="flex items-center gap-4">
           <div className="text-right">
             <div className="text-xs font-bold text-slate-400 uppercase">Current Score</div>
-            <div className="text-2xl font-black text-emerald-600">{attempt.score} / {attempt.max_score}</div>
+            <div className="text-2xl font-black text-emerald-600">{grade} / {attempt.max_score}</div>
           </div>
         </div>
       </header>
@@ -2614,7 +2312,7 @@ const TestAttemptView = ({ user }: { user: User }) => {
                       <div className="text-xs text-slate-400 italic">Manual grading required.</div>
                     )}
                     
-                    {(user.role === 'lecturer' || user.role === 'admin') && (
+                    {(user.role === 'lecturer' || user.role === 'admin' || user.role === 'sysadmin') && (
                       <div className="mt-2 flex items-center gap-2 p-2 bg-slate-50 rounded-lg border border-slate-100 w-fit">
                         <label className="text-xs font-bold text-slate-500 uppercase">Score:</label>
                         <input 
@@ -2633,7 +2331,7 @@ const TestAttemptView = ({ user }: { user: User }) => {
           </Card>
         </div>
 
-        {(user.role === 'lecturer' || user.role === 'admin') && (
+        {(user.role === 'lecturer' || user.role === 'admin' || user.role === 'sysadmin') && (
           <div className="space-y-6">
             <Card className="p-6 sticky top-24">
               <h3 className="font-bold text-slate-900 mb-4">Grading Summary</h3>
@@ -2727,492 +2425,7 @@ const Community = ({ user }: { user: User }) => {
   );
 };
 
-const ResourcesTab = ({ courseId, user }: { courseId: number, user: User }) => {
-  const [resources, setResources] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  const fetchResources = async () => {
-    try {
-      const data = await fetchJson(`/api/courses/${courseId}/resources`);
-      setResources(data);
-      setLoading(false);
-    } catch (err) {
-      console.error("Failed to fetch resources:", err);
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchResources();
-  }, [courseId]);
-
-  const toggleViewed = async (contentId: number, currentStatus: boolean) => {
-    await fetch(`/api/content/${contentId}/progress`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ is_viewed: !currentStatus })
-    });
-    fetchResources();
-  };
-
-  if (loading) return <div className="py-8 text-center text-slate-400">Loading resources...</div>;
-
-  const groupedResources = resources.reduce((acc: any, res: any) => {
-    if (!acc[res.module_title]) acc[res.module_title] = [];
-    acc[res.module_title].push(res);
-    return acc;
-  }, {});
-
-  return (
-    <div className="space-y-8">
-      <header>
-        <h2 className="text-xl font-bold text-slate-900">Course Resources</h2>
-        <p className="text-sm text-slate-500">Recorded lectures, podcasts, and all learning materials organized by module.</p>
-      </header>
-
-      <div className="space-y-6">
-        {Object.entries(groupedResources).map(([moduleTitle, items]: [string, any]) => (
-          <div key={moduleTitle} className="space-y-3">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest px-2">{moduleTitle}</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {items.map((item: any) => (
-                <Card key={item.id} className="p-4 hover:border-emerald-200 transition-all group">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className={cn(
-                        "w-10 h-10 rounded-xl flex items-center justify-center",
-                        item.type === 'video' ? "bg-rose-50 text-rose-600" :
-                        item.type === 'audio' || item.type === 'podcast' ? "bg-amber-50 text-amber-600" :
-                        "bg-blue-50 text-blue-600"
-                      )}>
-                        {item.type === 'video' ? <Video size={20} /> :
-                         item.type === 'audio' || item.type === 'podcast' ? <Mic size={20} /> :
-                         <FileText size={20} />}
-                      </div>
-                      <div>
-                        <p className="font-bold text-slate-900 text-sm">{item.title}</p>
-                        <div className="flex items-center gap-2">
-                          <p className="text-[10px] text-slate-400 uppercase tracking-wider">{item.type} {item.is_external ? '• External' : ''}</p>
-                          {item.creator_name && <span className="text-[10px] text-slate-400">• {item.creator_name}</span>}
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                      {user.role === 'student' && (
-                        <button 
-                          onClick={() => toggleViewed(item.id, !!item.is_viewed)}
-                          className={cn(
-                            "p-2 rounded-lg transition-colors",
-                            item.is_viewed ? "text-emerald-600 bg-emerald-50" : "text-slate-300 hover:text-slate-400"
-                          )}
-                        >
-                          <CheckCircle size={18} fill={item.is_viewed ? "currentColor" : "none"} />
-                        </button>
-                      )}
-                      
-                      {item.allow_download && (
-                        <a 
-                          href={item.url} 
-                          download 
-                          className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
-                        >
-                          <Download size={18} />
-                        </a>
-                      )}
-                      
-                      <a 
-                        href={item.url} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="p-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors"
-                      >
-                        <ExternalLink size={16} />
-                      </a>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          </div>
-        ))}
-        {resources.length === 0 && (
-          <div className="p-12 text-center text-slate-400 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
-            No resources available for this course yet.
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-const CourseGrades = ({ courseId, user }: { courseId: number, user: User }) => {
-  const [grades, setGrades] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchJson(`/api/courses/${courseId}/my-grades`)
-      .then(data => {
-        setGrades(data);
-        setLoading(false);
-      })
-      .catch(err => console.error(err));
-  }, [courseId]);
-
-  if (loading) return <div className="py-8 text-center text-slate-400">Loading grades...</div>;
-
-  const totalPossible = (grades.assignments?.reduce((acc: number, a: any) => acc + (a.max_points || 0), 0) || 0) +
-                        (grades.tests?.reduce((acc: number, t: any) => acc + (t.max_score || 0), 0) || 0);
-  
-  const totalEarned = (grades.assignments?.reduce((acc: number, a: any) => acc + (a.grades_released ? (a.grade || 0) : 0), 0) || 0) +
-                      (grades.tests?.reduce((acc: number, t: any) => acc + (t.score || 0), 0) || 0);
-
-  const percentage = totalPossible > 0 ? Math.round((totalEarned / totalPossible) * 100) : 0;
-  const isCompleted = percentage >= 60; // Assume 60% is passing
-
-  const handleDownloadCertificate = () => {
-    // Mock certificate download
-    const canvas = document.createElement('canvas');
-    canvas.width = 800;
-    canvas.height = 600;
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctx.fillStyle = '#f8fafc';
-      ctx.fillRect(0, 0, 800, 600);
-      ctx.strokeStyle = '#10b981';
-      ctx.lineWidth = 20;
-      ctx.strokeRect(20, 20, 760, 560);
-      
-      ctx.fillStyle = '#1e293b';
-      ctx.font = 'bold 40px serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('CERTIFICATE OF COMPLETION', 400, 150);
-      
-      ctx.font = '24px sans-serif';
-      ctx.fillText('This is to certify that', 400, 220);
-      
-      ctx.font = 'bold 32px sans-serif';
-      ctx.fillStyle = '#10b981';
-      ctx.fillText(user.full_name || 'Student', 400, 280);
-      
-      ctx.fillStyle = '#1e293b';
-      ctx.font = '24px sans-serif';
-      ctx.fillText('has successfully completed the course', 400, 340);
-      
-      ctx.font = 'bold 28px sans-serif';
-      ctx.fillText('Course ID: ' + courseId, 400, 390);
-      
-      ctx.font = '18px sans-serif';
-      ctx.fillText('Date: ' + new Date().toLocaleDateString(), 400, 480);
-      
-      const link = document.createElement('a');
-      link.download = `Certificate_Course_${courseId}.png`;
-      link.href = canvas.toDataURL();
-      link.click();
-    }
-  };
-
-  return (
-    <div className="space-y-8">
-      <header className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900">Your Grades</h2>
-          <p className="text-sm text-slate-500">Track your performance across assignments and tests.</p>
-        </div>
-        {isCompleted && (
-          <button 
-            onClick={handleDownloadCertificate}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 transition-all"
-          >
-            <Download size={16} /> Download Certificate
-          </button>
-        )}
-      </header>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="p-6 flex flex-col items-center justify-center text-center">
-          <div className="text-xs font-bold text-slate-400 uppercase mb-2">Overall Grade</div>
-          <div className="text-4xl font-bold text-emerald-600">{percentage}%</div>
-          <div className="text-xs text-slate-400 mt-1">{totalEarned} / {totalPossible} Points</div>
-        </Card>
-        
-        <Card className="p-6 md:col-span-2">
-          <h3 className="font-bold text-slate-900 mb-4">Grade Breakdown</h3>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-600">Assignments</span>
-                <span className="font-bold text-slate-900">
-                  {grades.assignments?.reduce((acc: number, a: any) => acc + (a.grades_released ? (a.grade || 0) : 0), 0)} / {grades.assignments?.reduce((acc: number, a: any) => acc + (a.max_points || 0), 0)}
-                </span>
-              </div>
-              <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-amber-500" 
-                  style={{ width: `${(grades.assignments?.reduce((acc: number, a: any) => acc + (a.max_points || 0), 0) > 0 ? (grades.assignments?.reduce((acc: number, a: any) => acc + (a.grades_released ? (a.grade || 0) : 0), 0) / grades.assignments?.reduce((acc: number, a: any) => acc + (a.max_points || 0), 0)) * 100 : 0)}%` }} 
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-600">Tests & Quizzes</span>
-                <span className="font-bold text-slate-900">
-                  {grades.tests?.reduce((acc: number, t: any) => acc + (t.score || 0), 0)} / {grades.tests?.reduce((acc: number, t: any) => acc + (t.max_score || 0), 0)}
-                </span>
-              </div>
-              <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-indigo-500" 
-                  style={{ width: `${(grades.tests?.reduce((acc: number, t: any) => acc + (t.max_score || 0), 0) > 0 ? (grades.tests?.reduce((acc: number, t: any) => acc + (t.score || 0), 0) / grades.tests?.reduce((acc: number, t: any) => acc + (t.max_score || 0), 0)) * 100 : 0)}%` }} 
-                />
-              </div>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      <div className="space-y-6">
-        <div className="space-y-3">
-          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest px-2">Assignments</h3>
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden divide-y divide-slate-100">
-            {grades.assignments?.map((a: any, i: number) => (
-              <div key={i} className="p-4 flex items-center justify-between">
-                <div>
-                  <p className="font-bold text-slate-900">{a.title}</p>
-                  {!a.grades_released && <p className="text-[10px] text-amber-600 font-bold uppercase">Pending Release</p>}
-                </div>
-                <div className="text-right">
-                  <p className="font-bold text-slate-900">{a.grades_released ? (a.grade ?? '-') : '-'}</p>
-                  <p className="text-xs text-slate-400">out of {a.max_points}</p>
-                </div>
-              </div>
-            ))}
-            {grades.assignments?.length === 0 && <div className="p-8 text-center text-slate-400 text-sm italic">No assignments found</div>}
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest px-2">Tests</h3>
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden divide-y divide-slate-100">
-            {grades.tests?.map((t: any, i: number) => (
-              <div key={i} className="p-4 flex items-center justify-between">
-                <p className="font-bold text-slate-900">{t.title}</p>
-                <div className="text-right">
-                  <p className="font-bold text-slate-900">{t.score ?? '-'}</p>
-                  <p className="text-xs text-slate-400">out of {t.max_score}</p>
-                </div>
-              </div>
-            ))}
-            {grades.tests?.length === 0 && <div className="p-8 text-center text-slate-400 text-sm italic">No tests found</div>}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const TestQuestionBuilder = ({ questions, setQuestions }: { questions: any[], setQuestions: (q: any[]) => void }) => {
-  const [newQ, setNewQ] = useState({
-    question_text: '',
-    type: 'multiple_choice',
-    options: ['', '', '', ''],
-    correct_answer: '',
-    points: 1
-  });
-  const [editingIndex, setEditingIndex] = useState<number>(-1);
-
-  const addQuestion = () => {
-    if (!newQ.question_text) return;
-    
-    if (editingIndex >= 0) {
-      const updated = [...questions];
-      updated[editingIndex] = newQ;
-      setQuestions(updated);
-      setEditingIndex(-1);
-    } else {
-      setQuestions([...questions, newQ]);
-    }
-    
-    setNewQ({
-      question_text: '',
-      type: 'multiple_choice',
-      options: ['', '', '', ''],
-      correct_answer: '',
-      points: 1
-    });
-  };
-
-  const startEdit = (index: number) => {
-    setNewQ(questions[index]);
-    setEditingIndex(index);
-  };
-
-  const cancelEdit = () => {
-    setEditingIndex(-1);
-    setNewQ({
-      question_text: '',
-      type: 'multiple_choice',
-      options: ['', '', '', ''],
-      correct_answer: '',
-      points: 1
-    });
-  };
-
-  return (
-    <div className="space-y-6 pt-6 border-t border-slate-200">
-      <h4 className="font-bold text-slate-900 flex items-center gap-2">
-        <PlusCircle size={18} className="text-emerald-600" />
-        {editingIndex >= 0 ? 'Edit Question' : 'Add Questions'}
-      </h4>
-      
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="md:col-span-2">
-            <label className="block text-xs font-bold text-slate-400 mb-1 uppercase">Question Text</label>
-            <input 
-              type="text" 
-              value={newQ.question_text}
-              onChange={(e) => setNewQ({ ...newQ, question_text: e.target.value })}
-              className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
-              placeholder="Enter question..."
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-400 mb-1 uppercase">Type</label>
-            <select 
-              value={newQ.type}
-              onChange={(e) => setNewQ({ ...newQ, type: e.target.value, options: e.target.value === 'multiple_choice' ? ['', '', '', ''] : [] })}
-              className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
-            >
-              <option value="multiple_choice">Multiple Choice</option>
-              <option value="true_false">True / False</option>
-              <option value="short_answer">Short Answer</option>
-              <option value="essay">Essay</option>
-            </select>
-          </div>
-        </div>
-
-        {newQ.type === 'multiple_choice' && (
-          <div className="space-y-2">
-            <label className="block text-xs font-bold text-slate-400 mb-1 uppercase">Options (Select radio for correct answer)</label>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {newQ.options.map((opt: string, i: number) => (
-                <div key={i} className="flex items-center gap-2">
-                  <input 
-                    type="radio" 
-                    name="correct" 
-                    checked={newQ.correct_answer === opt && opt !== ''}
-                    onChange={() => setNewQ({ ...newQ, correct_answer: opt })}
-                  />
-                  <input 
-                    type="text" 
-                    value={opt}
-                    onChange={(e) => {
-                      const next = [...newQ.options];
-                      next[i] = e.target.value;
-                      setNewQ({ ...newQ, options: next });
-                    }}
-                    className="flex-1 px-3 py-1.5 rounded-lg border border-slate-200 text-sm"
-                    placeholder={`Option ${i + 1}`}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {newQ.type === 'true_false' && (
-          <div className="flex gap-4">
-            {['True', 'False'].map(val => (
-              <label key={val} className="flex items-center gap-2 cursor-pointer">
-                <input 
-                  type="radio" 
-                  name="tf" 
-                  checked={newQ.correct_answer === val}
-                  onChange={() => setNewQ({ ...newQ, correct_answer: val })}
-                />
-                <span className="text-sm font-medium">{val}</span>
-              </label>
-            ))}
-          </div>
-        )}
-
-        <div className="flex items-center justify-between pt-2">
-          <div className="flex items-center gap-4">
-            <div>
-              <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Points</label>
-              <input 
-                type="number" 
-                value={newQ.points}
-                onChange={(e) => setNewQ({ ...newQ, points: parseInt(e.target.value) || 1 })}
-                className="w-20 px-3 py-1.5 rounded-lg border border-slate-200 text-sm"
-              />
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {editingIndex >= 0 && (
-              <button 
-                type="button"
-                onClick={cancelEdit}
-                className="px-4 py-2 text-slate-500 font-bold text-sm hover:text-slate-700 transition-all"
-              >
-                Cancel
-              </button>
-            )}
-            <button 
-              type="button"
-              onClick={addQuestion}
-              className="px-6 py-2 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-slate-800 transition-all"
-            >
-              {editingIndex >= 0 ? 'Update Question' : 'Add to Test'}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {questions.length > 0 && (
-        <div className="space-y-2">
-          <h5 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Added Questions ({questions.length})</h5>
-          <div className="space-y-2">
-            {questions.map((q, i) => (
-              <div key={i} className={cn(
-                "p-3 bg-white rounded-xl border flex items-center justify-between transition-all",
-                editingIndex === i ? "border-emerald-500 ring-1 ring-emerald-500 bg-emerald-50/50" : "border-slate-200"
-              )}>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-bold text-slate-400">#{i + 1}</span>
-                  <div>
-                    <p className="text-sm font-bold text-slate-900">{q.question_text}</p>
-                    <p className="text-[10px] text-slate-400 uppercase font-bold">{q.type.replace('_', ' ')} • {q.points} pts</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button 
-                    type="button"
-                    onClick={() => startEdit(i)}
-                    className="p-1.5 text-slate-300 hover:text-emerald-600 transition-colors"
-                  >
-                    <Edit2 size={16} />
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => {
-                      setQuestions(questions.filter((_, idx) => idx !== i));
-                      if (editingIndex === i) cancelEdit();
-                    }}
-                    className="p-1.5 text-slate-300 hover:text-rose-600 transition-colors"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
 
 const CourseDetail = ({ user }: { user: User }) => {
   const { id } = useParams();
@@ -3511,7 +2724,7 @@ const CourseDetail = ({ user }: { user: User }) => {
             <div className="space-y-4">
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-xl font-bold text-slate-900">Course Structure</h2>
-                {(user.role === 'lecturer' || user.role === 'admin') && (
+                {(user.role === 'lecturer' || user.role === 'admin' || user.role === 'sysadmin') && (
                   <button 
                     onClick={() => setShowAddModule(true)}
                     className="flex items-center gap-2 text-emerald-600 font-bold text-sm hover:underline"
@@ -3593,7 +2806,7 @@ const CourseDetail = ({ user }: { user: User }) => {
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      {(user.role === 'lecturer' || user.role === 'admin') && (
+                      {(user.role === 'lecturer' || user.role === 'admin' || user.role === 'sysadmin') && (
                         <button 
                           onClick={(e) => { e.stopPropagation(); setShowAddContent(module.id); }}
                           className="p-2 text-slate-400 hover:text-emerald-600 opacity-0 group-hover:opacity-100 transition-all"
@@ -3688,7 +2901,7 @@ const CourseDetail = ({ user }: { user: User }) => {
             <div className="space-y-4">
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-xl font-bold text-slate-900">Course Assignments</h2>
-                {(user.role === 'lecturer' || user.role === 'admin') && (
+                {(user.role === 'lecturer' || user.role === 'admin' || user.role === 'sysadmin') && (
                   <button 
                     onClick={() => setShowAddAssignment(true)}
                     className="flex items-center gap-2 text-emerald-600 font-bold text-sm hover:underline"
@@ -3883,7 +3096,7 @@ const CourseDetail = ({ user }: { user: User }) => {
             <div className="space-y-4">
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-xl font-bold text-slate-900">Online Assessments</h2>
-                {(user.role === 'lecturer' || user.role === 'admin') && (
+                {(user.role === 'lecturer' || user.role === 'admin' || user.role === 'sysadmin') && (
                   <button 
                     onClick={() => setShowAddTest(true)}
                     className="flex items-center gap-2 text-emerald-600 font-bold text-sm hover:underline"
@@ -4037,7 +3250,7 @@ const CourseDetail = ({ user }: { user: User }) => {
                       </div>
                     </Card>
                   </Link>
-                  {(user.role === 'lecturer' || user.role === 'admin') && (
+                  {(user.role === 'lecturer' || user.role === 'admin' || user.role === 'sysadmin') && (
                     <TestAnalytics testId={test.id} />
                   )}
                 </div>
@@ -4082,7 +3295,7 @@ const CourseDetail = ({ user }: { user: User }) => {
           )}
 
           {activeTab === 'grades' && (
-            user.role === 'lecturer' ? <LecturerCourseGrades courseId={parseInt(id!)} /> : <CourseGrades courseId={parseInt(id!)} user={user} />
+            (user.role === 'lecturer' || user.role === 'admin' || user.role === 'sysadmin') ? <LecturerCourseGrades courseId={parseInt(id!)} /> : <CourseGrades courseId={parseInt(id!)} user={user} />
           )}
         </div>
 
@@ -5237,6 +4450,7 @@ const AdminDashboard = () => {
                     <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Assignment</th>
                     <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Submitted</th>
                     <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Grade</th>
+                    <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -5252,6 +4466,13 @@ const AdminDashboard = () => {
                         ) : (
                           <Badge variant="warning">Ungraded</Badge>
                         )}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex justify-end gap-2">
+                          <Link to={`/assignments/${s.assignment_id}`} className="p-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition-all" title="View Assignment">
+                            <Eye size={16} />
+                          </Link>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -5271,6 +4492,7 @@ const AdminDashboard = () => {
                     <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Test</th>
                     <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Score</th>
                     <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Status</th>
+                    <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -5286,6 +4508,16 @@ const AdminDashboard = () => {
                         <Badge variant={tr.status === 'completed' ? 'success' : 'warning'}>
                           {tr.status}
                         </Badge>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex justify-end gap-2">
+                          <Link to={`/tests/${tr.test_id}`} className="p-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition-all" title="Preview Test">
+                            <Eye size={16} />
+                          </Link>
+                          <Link to={`/test-attempts/${tr.id}`} className="p-2 bg-navy/10 text-navy rounded-lg hover:bg-navy/20 transition-all" title="View Attempt">
+                            <FileText size={16} />
+                          </Link>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -5635,7 +4867,7 @@ const LecturerDashboard = ({ user }: { user: User }) => {
             </div>
             <div className="space-y-3">
               {data.pendingSubmissions.map((sub: any) => (
-                <Card key={sub.id} className="p-4 hover:border-emerald-200 transition-all group">
+                <Card key={`${sub.type}-${sub.submission_id}`} className="p-4 hover:border-emerald-200 transition-all group">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-500">
@@ -5643,11 +4875,11 @@ const LecturerDashboard = ({ user }: { user: User }) => {
                       </div>
                       <div>
                         <h4 className="font-bold text-slate-900">{sub.student_name}</h4>
-                        <p className="text-xs text-slate-400">{sub.assignment_title} • {sub.course_title}</p>
+                        <p className="text-xs text-slate-400">{sub.item_title} • {sub.course_title}</p>
                       </div>
                     </div>
                     <Link 
-                      to={`/courses/${sub.course_id}?tab=assignments`}
+                      to={`/courses/${sub.course_id}?tab=${sub.type === 'assignment' ? 'assignments' : 'tests'}`}
                       className="px-4 py-2 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold group-hover:bg-emerald-600 group-hover:text-white transition-all"
                     >
                       Grade Now
@@ -5746,7 +4978,7 @@ const TestTaking = ({ user }: { user: User }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const isPreview = user.role === 'lecturer' || user.role === 'admin';
+  const isPreview = user.role === 'lecturer' || user.role === 'admin' || user.role === 'sysadmin';
 
   useEffect(() => {
     const startTest = async () => {
@@ -5777,6 +5009,7 @@ const TestTaking = ({ user }: { user: User }) => {
         } else {
           // For preview, just set time left to limit but don't count down or save
           setTimeLeft(testData.time_limit_minutes * 60);
+          // Pre-fill answers if it's a preview? No, let them take it but show correct answers.
         }
 
         const qData = await fetchJson(`/api/tests/${id}/questions`);
@@ -5930,6 +5163,12 @@ const TestTaking = ({ user }: { user: User }) => {
               <span className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center font-bold text-slate-500 shrink-0">{idx + 1}</span>
               <div className="space-y-4 flex-1">
                 <p className="text-lg font-medium text-slate-900">{q.question_text}</p>
+                {isPreview && (
+                  <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center gap-2 text-sm font-bold text-emerald-700">
+                    <CheckCircle size={16} />
+                    Correct Answer: {q.correct_answer}
+                  </div>
+                )}
                 {q.type === 'multiple_choice' && (
                   <div className="grid grid-cols-1 gap-2">
                     {q.options.map((opt: string) => (
@@ -5981,7 +5220,7 @@ const TestTaking = ({ user }: { user: User }) => {
           onClick={handleSubmit}
           className="px-10 py-4 bg-emerald-600 text-white rounded-2xl font-bold shadow-xl shadow-emerald-600/20 hover:bg-emerald-700 transition-all"
         >
-          Submit Test
+          {isPreview ? 'Finish Preview' : 'Submit Test'}
         </button>
       </div>
     </div>
@@ -6082,14 +5321,15 @@ const Layout = ({ user, onLogout }: { user: User, onLogout: () => void }) => {
               <SidebarItem icon={Users} label="Students" to="/students" active={isActive('/students')} onClick={closeSidebarOnMobile} />
             </>
           )}
-          <SidebarItem icon={MessageSquare} label="Community" to="/community" active={isActive('/community')} onClick={closeSidebarOnMobile} />
           {(user.role === 'admin' || user.role === 'sysadmin') && (
             <>
+              <SidebarItem icon={Users} label="Students" to="/students" active={isActive('/students')} onClick={closeSidebarOnMobile} />
               <SidebarItem icon={LayoutDashboard} label="Academic Admin" to="/admin" active={isActive('/admin') && !isActive('/admin/users') && !isActive('/admin/courses')} onClick={closeSidebarOnMobile} />
               <SidebarItem icon={Users} label="Users" to="/admin/users" active={isActive('/admin/users')} onClick={closeSidebarOnMobile} />
               <SidebarItem icon={BookOpen} label="All Courses" to="/admin/courses" active={isActive('/admin/courses')} onClick={closeSidebarOnMobile} />
             </>
           )}
+          <SidebarItem icon={MessageSquare} label="Community" to="/community" active={isActive('/community')} onClick={closeSidebarOnMobile} />
           {user.role === 'sysadmin' && (
             <SidebarItem icon={Settings} label="System Admin" to="/sysadmin" active={isActive('/sysadmin')} onClick={closeSidebarOnMobile} />
           )}
@@ -6596,6 +5836,7 @@ export default function App() {
   </div>;
 
   return (
+    <ErrorBoundary>
     <Router>
       <Routes>
         <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <LoginPage onLogin={setUser} />} />
@@ -6621,5 +5862,6 @@ export default function App() {
         </Route>
       </Routes>
     </Router>
+      </ErrorBoundary>
   );
 }

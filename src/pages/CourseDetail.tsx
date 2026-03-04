@@ -9,7 +9,7 @@ import { fetchJson, cn } from '../lib/utils';
 import { Card, Badge } from '../components/ui';
 import { TestQuestionBuilder } from '../components/TestQuestionBuilder';
 import { 
-  TestAnalytics, ModuleContent, ResourcesTab, CourseGrades, ForumView 
+  TestAnalytics, ModuleContent, ResourcesTab, CourseGrades, ForumView, LecturerCourseGrades 
 } from '../components/course-components';
 
 export const CourseDetail = ({ user }: { user: User }) => {
@@ -405,7 +405,7 @@ export const CourseDetail = ({ user }: { user: User }) => {
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{module.content?.length || 0} Items</span>
-                      {(user.role === 'lecturer' || user.role === 'admin') && (
+                      {(user.role === 'lecturer' || user.role === 'admin' || user.role === 'sysadmin') && (
                         <div className="flex gap-2">
                           <button 
                             onClick={(e) => { e.stopPropagation(); setShowAddContent(module.id); }}
@@ -475,7 +475,11 @@ export const CourseDetail = ({ user }: { user: User }) => {
 
           {activeTab === 'resources' && <ResourcesTab courseId={courseData.course.id} user={user} />}
           
-          {activeTab === 'grades' && <CourseGrades courseId={courseData.course.id} user={user} />}
+          {activeTab === 'grades' && (
+            (user.role === 'lecturer' || user.role === 'admin' || user.role === 'sysadmin') ? 
+            <LecturerCourseGrades courseId={courseData.course.id} /> : 
+            <CourseGrades courseId={courseData.course.id} user={user} />
+          )}
           
           {activeTab === 'forum' && courseData.course.forum_id && (
             <ForumView url={`/api/forums/${courseData.course.forum_id}`} user={user} />

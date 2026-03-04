@@ -212,7 +212,7 @@ const PORT = process.env.PORT || 3000;
 
   // Lecturer Dashboard Stats
   app.get("/api/lecturer/dashboard", authenticate, (req: any, res) => {
-    if (req.user.role !== 'lecturer' && req.user.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    if (req.user.role !== 'lecturer' && req.user.role !== 'admin' && req.user.role !== 'sysadmin') return res.status(403).json({ error: "Forbidden" });
     const userId = req.user.id;
 
     const totalStudents = db.prepare(`
@@ -300,23 +300,32 @@ const PORT = process.env.PORT || 3000;
   });
 
   app.get("/api/lecturer/students", authenticate, (req: any, res) => {
-    if (req.user.role !== 'lecturer' && req.user.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    if (req.user.role !== 'lecturer' && req.user.role !== 'admin' && req.user.role !== 'sysadmin') return res.status(403).json({ error: "Forbidden" });
     const userId = req.user.id;
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'sysadmin';
 
-    const students = db.prepare(`
-      SELECT DISTINCT u.id, u.full_name, u.email, u.avatar_url, c.title as course_title, c.code as course_code, e.enrolled_at
-      FROM users u
-      JOIN enrollments e ON u.id = e.user_id
-      JOIN courses c ON e.course_id = c.id
-      WHERE c.lecturer_id = ?
-      ORDER BY e.enrolled_at DESC
-    `).all(userId);
+    const students = isAdmin ?
+      db.prepare(`
+        SELECT DISTINCT u.id, u.full_name, u.email, u.avatar_url, c.title as course_title, c.code as course_code, e.enrolled_at
+        FROM users u
+        JOIN enrollments e ON u.id = e.user_id
+        JOIN courses c ON e.course_id = c.id
+        ORDER BY e.enrolled_at DESC
+      `).all() :
+      db.prepare(`
+        SELECT DISTINCT u.id, u.full_name, u.email, u.avatar_url, c.title as course_title, c.code as course_code, e.enrolled_at
+        FROM users u
+        JOIN enrollments e ON u.id = e.user_id
+        JOIN courses c ON e.course_id = c.id
+        WHERE c.lecturer_id = ?
+        ORDER BY e.enrolled_at DESC
+      `).all(userId);
 
     res.json(students);
   });
 
   app.get("/api/courses/:id/lecturer-grades", authenticate, (req: any, res) => {
-    if (req.user.role !== 'lecturer' && req.user.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    if (req.user.role !== 'lecturer' && req.user.role !== 'admin' && req.user.role !== 'sysadmin') return res.status(403).json({ error: "Forbidden" });
     const courseId = req.params.id;
 
     const submissions = db.prepare(`
@@ -536,14 +545,14 @@ const PORT = process.env.PORT || 3000;
 
   // Modules & Content
   app.post("/api/courses/:id/modules", authenticate, (req: any, res) => {
-    if (req.user.role !== 'lecturer' && req.user.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    if (req.user.role !== 'lecturer' && req.user.role !== 'admin' && req.user.role !== 'sysadmin') return res.status(403).json({ error: "Forbidden" });
     const { title, order_index } = req.body;
     const result = db.prepare('INSERT INTO modules (course_id, title, order_index, created_by) VALUES (?, ?, ?, ?)').run(req.params.id, title, order_index, req.user.id);
     res.json({ id: result.lastInsertRowid });
   });
 
   app.post("/api/modules/:id/content", authenticate, (req: any, res) => {
-    if (req.user.role !== 'lecturer' && req.user.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    if (req.user.role !== 'lecturer' && req.user.role !== 'admin' && req.user.role !== 'sysadmin') return res.status(403).json({ error: "Forbidden" });
     const { title, type, url, description, order_index, allow_download, is_external } = req.body;
     const result = db.prepare('INSERT INTO content (module_id, title, type, url, description, order_index, allow_download, is_external, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(req.params.id, title, type, url, description, order_index, allow_download ? 1 : 0, is_external ? 1 : 0, req.user.id);
     res.json({ id: result.lastInsertRowid });
@@ -575,7 +584,7 @@ const PORT = process.env.PORT || 3000;
 
   // Tests & Questions
   app.post("/api/modules/:id/tests", authenticate, (req: any, res) => {
-    if (req.user.role !== 'lecturer' && req.user.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    if (req.user.role !== 'lecturer' && req.user.role !== 'admin' && req.user.role !== 'sysadmin') return res.status(403).json({ error: "Forbidden" });
     const { title, description, time_limit_minutes, attempt_limit, is_randomized, random_count, passing_score, show_results_immediately } = req.body;
     const result = db.prepare(`
       INSERT INTO tests (module_id, title, description, time_limit_minutes, attempt_limit, is_randomized, random_count, passing_score, show_results_immediately) 
@@ -596,14 +605,14 @@ const PORT = process.env.PORT || 3000;
   });
 
   app.post("/api/courses/:id/question-banks", authenticate, (req: any, res) => {
-    if (req.user.role !== 'lecturer' && req.user.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    if (req.user.role !== 'lecturer' && req.user.role !== 'admin' && req.user.role !== 'sysadmin') return res.status(403).json({ error: "Forbidden" });
     const { name, description } = req.body;
     const result = db.prepare('INSERT INTO question_banks (course_id, name, description) VALUES (?, ?, ?)').run(req.params.id, name, description);
     res.json({ id: result.lastInsertRowid });
   });
 
   app.post("/api/question-banks/:id/questions", authenticate, (req: any, res) => {
-    if (req.user.role !== 'lecturer' && req.user.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    if (req.user.role !== 'lecturer' && req.user.role !== 'admin' && req.user.role !== 'sysadmin') return res.status(403).json({ error: "Forbidden" });
     const { question_text, type, options, correct_answer, points } = req.body;
     const result = db.prepare(`
       INSERT INTO questions (bank_id, question_text, type, options, correct_answer, points) 
@@ -618,7 +627,7 @@ const PORT = process.env.PORT || 3000;
   });
 
   app.post("/api/tests/:id/questions", authenticate, (req: any, res) => {
-    if (req.user.role !== 'lecturer' && req.user.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    if (req.user.role !== 'lecturer' && req.user.role !== 'admin' && req.user.role !== 'sysadmin') return res.status(403).json({ error: "Forbidden" });
     const { question_text, type, options, correct_answer, points, bank_id } = req.body;
     const result = db.prepare(`
       INSERT INTO questions (test_id, bank_id, question_text, type, options, correct_answer, points) 
@@ -745,7 +754,7 @@ const PORT = process.env.PORT || 3000;
   });
 
   app.post("/api/test-results/:id/grade", authenticate, (req: any, res) => {
-    if (req.user.role !== 'lecturer' && req.user.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    if (req.user.role !== 'lecturer' && req.user.role !== 'admin' && req.user.role !== 'sysadmin') return res.status(403).json({ error: "Forbidden" });
     const { score, scores } = req.body;
     
     if (scores) {
@@ -760,7 +769,7 @@ const PORT = process.env.PORT || 3000;
   });
 
   app.get("/api/tests/:id/analytics", authenticate, (req: any, res) => {
-    if (req.user.role !== 'lecturer' && req.user.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    if (req.user.role !== 'lecturer' && req.user.role !== 'admin' && req.user.role !== 'sysadmin') return res.status(403).json({ error: "Forbidden" });
     const stats = db.prepare(`
       SELECT 
         COUNT(*) as total_attempts,
@@ -847,7 +856,7 @@ const PORT = process.env.PORT || 3000;
   });
 
   app.post("/api/posts/:id/pin", authenticate, (req: any, res) => {
-    if (req.user.role !== 'lecturer' && req.user.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    if (req.user.role !== 'lecturer' && req.user.role !== 'admin' && req.user.role !== 'sysadmin') return res.status(403).json({ error: "Forbidden" });
     const { is_pinned } = req.body;
     db.prepare('UPDATE forum_posts SET is_pinned = ? WHERE id = ?').run(is_pinned ? 1 : 0, req.params.id);
     res.json({ success: true });
@@ -883,7 +892,7 @@ const PORT = process.env.PORT || 3000;
   });
 
   app.post("/api/modules/:id/assignments", authenticate, (req: any, res) => {
-    if (req.user.role !== 'lecturer' && req.user.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    if (req.user.role !== 'lecturer' && req.user.role !== 'admin' && req.user.role !== 'sysadmin') return res.status(403).json({ error: "Forbidden" });
     const { title, description, due_date, allow_late, late_penalty_percent, max_points, rubric_json, min_word_count, allowed_file_types } = req.body;
     const result = db.prepare(`
       INSERT INTO assignments (module_id, title, description, due_date, allow_late, late_penalty_percent, max_points, rubric_json, min_word_count, allowed_file_types) 
@@ -901,7 +910,7 @@ const PORT = process.env.PORT || 3000;
   });
 
   app.post("/api/assignments/:id/release-grades", authenticate, (req: any, res) => {
-    if (req.user.role !== 'lecturer' && req.user.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    if (req.user.role !== 'lecturer' && req.user.role !== 'admin' && req.user.role !== 'sysadmin') return res.status(403).json({ error: "Forbidden" });
     db.prepare('UPDATE assignments SET grades_released = 1 WHERE id = ?').run(req.params.id);
     res.json({ success: true });
   });
@@ -933,7 +942,7 @@ const PORT = process.env.PORT || 3000;
   });
 
   app.post("/api/submissions/:id/grade", authenticate, (req: any, res) => {
-    if (req.user.role !== 'lecturer' && req.user.role !== 'admin') {
+    if (req.user.role !== 'lecturer' && req.user.role !== 'admin' && req.user.role !== 'sysadmin') {
       return res.status(403).json({ error: "Forbidden" });
     }
     const { grade, feedback, rubric_scores } = req.body;
