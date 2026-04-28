@@ -14,7 +14,7 @@ async function startServer() {
   console.log("Database initialized.");
   const app = express();
   app.use(cors());
-const PORT = process.env.PORT || 3000;
+const port = Number(process.env.PORT) || 3000;
   app.use(express.json());
   app.use(cookieParser());
 
