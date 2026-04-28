@@ -1292,7 +1292,7 @@ const AssignmentView = ({ user }: { user: User }) => {
                         value={gradeData.rubric_scores[criterion.name] || 0}
                         onChange={(e) => {
                           const newScores = { ...gradeData.rubric_scores, [criterion.name]: parseInt(e.target.value) || 0 };
-                          const totalGrade = Object.values(newScores).reduce((a: any, b: any) => a + b, 0) as number;
+                          const totalGrade = Object.values(newScores).reduce((a: number, b: any) => a + Number(b), 0);
                           setGradeData({ ...gradeData, rubric_scores: newScores, grade: totalGrade });
                         }}
                         className="w-full accent-emerald-600"
